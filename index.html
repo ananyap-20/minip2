@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced Python Debugger</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            height: 100vh;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        #file-explorer {
+            padding: 10px;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+        }
+
+        #code-area {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #code-editor {
+            flex-grow: 1;
+            padding: 10px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', monospace;
+            white-space: pre;
+            overflow: auto;
+            position: relative;
+        }
+
+        #debug-controls {
+            padding: 10px;
+            background: #252526;
+            border-bottom: 1px solid #333;
+        }
+
+        #debug-info {
+            padding: 10px;
+            border-left: 1px solid #333;
+            overflow-y: auto;
+        }
+
+        .button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        .button:hover {
+            background: #1177bb;
+        }
+
+        .breakpoint {
+            position: absolute;
+            left: 0;
+            width: 8px;
+            height: 8px;
+            background: #e51400;
+            border-radius: 50%;
+            margin-top: 6px;
+        }
+
+        .current-line {
+            background: #282828;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #569cd6;
+        }
+
+        .variable-item {
+            margin: 5px 0;
+            padding: 5px;
+            background: #252526;
+            border-radius: 4px;
+        }
+
+        #ai-suggestions {
+            margin-top: 20px;
+            padding: 10px;
+            background: #252526;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="file-explorer">
+        <div class="section-title">Files</div>
+        <div id="file-list"></div>
+    </div>
+
+    <div id="code-area">
+        <div id="debug-controls">
+            <button class="button" onclick="startDebug()">Start Debug</button>
+            <button class="button" onclick="sendCommand('step')">Step</button>
+            <button class="button" onclick="sendCommand('continue')">Continue</button>
+            <button class="button" onclick="sendCommand('quit')">Stop</button>
+        </div>
+        <div id="code-editor"></div>
+    </div>
+
+    <div id="debug-info">
+        <div class="section-title">Variables</div>
+        <div id="variables-list"></div>
+
+        <div class="section-title">Stack Trace</div>
+        <div id="stack-trace"></div>
+
+        <div class="section-title">AI Suggestions</div>
+        <div id="ai-suggestions"></div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        let currentBreakpoints = new Set();
+
+        function startDebug() {
+            const filePath = 'example.py'; // Replace with selected file
+            ipcRenderer.send('start-debug', {
+                filePath,
+                breakpoints: Array.from(currentBreakpoints)
+            });
+        }
+
+        function sendCommand(cmd) {
+            ipcRenderer.send('debug-command', cmd);
+        }
+
+        function toggleBreakpoint(line) {
+            if (currentBreakpoints.has(line)) {
+                currentBreakpoints.delete(line);
+            } else {
+                currentBreakpoints.add(line);
+            }
+            updateBreakpointDisplay();
+        }
+
+        function updateBreakpointDisplay() {
+            // Clear existing breakpoints
+            document.querySelectorAll('.breakpoint').forEach(el => el.remove());
+
+            // Add breakpoint markers
+            currentBreakpoints.forEach(line => {
+                const marker = document.createElement('div');
+                marker.className = 'breakpoint';
+                marker.style.top = `${(line - 1) * 20}px`;
+                document.getElementById('code-editor').appendChild(marker);
+            });
+        }
+
+        ipcRenderer.on('debug-update', (event, data) => {
+            if (data.variables) {
+                const varList = document.getElementById('variables-list');
+                varList.innerHTML = Object.entries(data.variables)
+                    .map(([key, value]) => `<div class="variable-item">${key}: ${value}</div>`)
+                    .join('');
+            }
+
+            if (data.stack_trace) {
+                document.getElementById('stack-trace').innerHTML = 
+                    data.stack_trace.map(frame => `<div>${frame}</div>`).join('');
+            }
+
+            if (data.ai_suggestion) {
+                document.getElementById('ai-suggestions').innerHTML = data.ai_suggestion;
+            }
+        });
+
+        ipcRenderer.on('debug-error', (event, error) => {
+            console.error('Debug error:', error);
+        });
+    </script>
+</body>
+</html>
